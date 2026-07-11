@@ -39,7 +39,14 @@ openssl req -new -newkey rsa:2048 -x509 -sha256 -days 3650 -nodes \
   -keyout "$SIGNING_DIR/signing-key.pem" \
   -out "$SIGNING_DIR/signing-cert.pem" >/dev/null 2>&1
 
-openssl pkcs12 -export -legacy \
+typeset -a pkcs12_compat
+# Homebrew OpenSSL 3 needs legacy encryption for macOS Keychain import, while
+# the LibreSSL-compatible tool on GitHub runners does not expose this flag.
+if openssl pkcs12 -help 2>&1 | grep -q -- '-legacy'; then
+  pkcs12_compat=(-legacy)
+fi
+
+openssl pkcs12 -export "${pkcs12_compat[@]}" \
   -inkey "$SIGNING_DIR/signing-key.pem" \
   -in "$SIGNING_DIR/signing-cert.pem" \
   -name "$IDENTITY" \
