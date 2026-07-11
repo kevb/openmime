@@ -37,7 +37,7 @@ OpenMime does not yet ship a shared, Google-verified OAuth client, so each teste
 3. Launch OpenMime, choose that JSON when prompted, and sign in with Google.
 4. Connect Google Contacts later from the compose window if you want richer address suggestions.
 
-The current builds are self-signed and are not notarized because the project does not yet have a paid Apple Developer account. On first launch, macOS may require you to right-click OpenMime and choose **Open**, or approve it under **System Settings → Privacy & Security**. If the project attracts a community, the next distribution step is a stable Developer ID signature and notarization.
+The current builds use development/ad-hoc signing and are not notarized because the project does not yet have a paid Apple Developer account. On first launch, macOS may require you to right-click OpenMime and choose **Open**, or approve it under **System Settings → Privacy & Security**. If the project attracts a community, the next distribution step is a stable Developer ID signature and notarization.
 
 Google may also show an “unverified app” warning for your private OAuth client. Personal test accounts can continue through that warning. If OpenMime gains broader interest, the project can adopt a maintained production OAuth client and go through Google's verification process.
 

@@ -16,6 +16,8 @@ jobs:
   test:
     runs-on: macos-15
     timeout-minutes: 20
+    env:
+      OPENMIME_SIGNING_MODE: adhoc
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode

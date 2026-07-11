@@ -21,19 +21,25 @@ cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 cp "$ROOT/Resources/OpenMime.icns" "$APP/Contents/Resources/OpenMime.icns"
 cp "$ROOT/Resources/OpenMimeIcon.png" "$APP/Contents/Resources/OpenMimeIcon.png"
 
-"$ROOT/Scripts/setup_local_signing.sh" >/dev/null
-PASSWORD="$(<"$PASSWORD_FILE")"
-ORIGINAL_KEYCHAINS=("${(@f)$(security list-keychains -d user | tr -d '"' | sed 's/^[[:space:]]*//')}")
-restore_keychain_search_list() {
-  security list-keychains -d user -s "${ORIGINAL_KEYCHAINS[@]}"
-}
-trap restore_keychain_search_list EXIT
-security list-keychains -d user -s "${ORIGINAL_KEYCHAINS[@]}" "$KEYCHAIN"
-security unlock-keychain -p "$PASSWORD" "$KEYCHAIN"
-codesign --force --sign "$IDENTITY" --keychain "$KEYCHAIN" --timestamp=none "$APP"
+if [[ "${OPENMIME_SIGNING_MODE:-local}" == "adhoc" ]]; then
+  # CI has no stable signing identity. Ad-hoc signing verifies bundle integrity
+  # without creating a certificate or modifying the runner's trust settings.
+  codesign --force --sign - --timestamp=none "$APP"
+else
+  "$ROOT/Scripts/setup_local_signing.sh" >/dev/null
+  PASSWORD="$(<"$PASSWORD_FILE")"
+  ORIGINAL_KEYCHAINS=("${(@f)$(security list-keychains -d user | tr -d '"' | sed 's/^[[:space:]]*//')}")
+  restore_keychain_search_list() {
+    security list-keychains -d user -s "${ORIGINAL_KEYCHAINS[@]}"
+  }
+  trap restore_keychain_search_list EXIT
+  security list-keychains -d user -s "${ORIGINAL_KEYCHAINS[@]}" "$KEYCHAIN"
+  security unlock-keychain -p "$PASSWORD" "$KEYCHAIN"
+  codesign --force --sign "$IDENTITY" --keychain "$KEYCHAIN" --timestamp=none "$APP"
+  restore_keychain_search_list
+  trap - EXIT
+fi
 codesign --verify --deep --strict "$APP"
-restore_keychain_search_list
-trap - EXIT
 
 lipo -archs "$APP/Contents/MacOS/OpenMime"
 print "Built universal $APP ($(du -sh "$APP" | awk '{print $1}'))"

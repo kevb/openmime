@@ -12,6 +12,8 @@ jobs:
   dmg:
     runs-on: macos-15
     timeout-minutes: 30
+    env:
+      OPENMIME_SIGNING_MODE: adhoc
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain
