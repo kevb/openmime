@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: |
+          if [[ -d /Applications/Xcode_16.4.app ]]; then
+            sudo xcode-select -s /Applications/Xcode_16.4.app
+          fi
+          xcodebuild -version
+          swift --version
+      - name: Test
+        run: swift test
+      - name: Build universal app and DMG
+        run: |
+          Scripts/build_universal_app.sh
+          Scripts/package_dmg.sh
+      - name: Verify distribution
+        run: |
+          codesign --verify --deep --strict dist/OpenMime.app
+          test "$(du -sm dist/OpenMime.app | cut -f1)" -le 35
+          hdiutil verify dist/OpenMime.dmg
+          (cd dist && shasum -a 256 -c OpenMime.dmg.sha256)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenMime-development-${{ github.sha }}
+          path: |
+            dist/OpenMime.dmg
+            dist/OpenMime.dmg.sha256
+          retention-days: 7
