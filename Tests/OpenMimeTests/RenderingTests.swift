@@ -81,15 +81,20 @@ import Testing
     <span style="color:#4285f4">Google blue</span>
     <span style="color:#660000">Dark brand red</span>
     <font color="#000000">Legacy black</font>
+    <table style="background-color:#F8FAFD"><tr><td style="color:#202124">Neutral card</td></tr></table>
+    <table style="background-color:#d3e3fd"><tr><td style="color:#041E49">Tinted card</td></tr></table>
     """
     let safe = SafeHTML.sanitizeFragment(html)
     #expect(safe.contains("data-openmime-dark-text"))
-    #expect(safe.components(separatedBy: "data-openmime-dark-text").count - 1 == 3)
-    #expect(safe.contains("<h1 style=\"color: rgba(0,0,0,0.87); font-size: 30px\" data-openmime-dark-text>"))
-    #expect(safe.contains("<font color=\"#000000\" data-openmime-dark-text>"))
-    #expect(safe.contains("<h2 style=\"color:#2c2c2c\" data-openmime-dark-text>"))
+    #expect(safe.components(separatedBy: "data-openmime-dark-text").count - 1 == 4)
+    #expect(safe.contains("<h1 style=\"color: rgba(0,0,0,0.87); font-size: 30px\" data-openmime-dark-text data-openmime-dark-color>"))
+    #expect(safe.contains("<font color=\"#000000\" data-openmime-dark-text data-openmime-dark-color>"))
+    #expect(safe.contains("<h2 style=\"color:#2c2c2c\" data-openmime-dark-text data-openmime-dark-color>"))
     #expect(safe.contains("style=\"color:#4285f4\""))
     #expect(!safe.contains("style=\"color:#660000\" data-openmime-dark-text"))
+    #expect(safe.contains("data-openmime-light-background"))
+    #expect(safe.contains("data-openmime-light-tint"))
+    #expect(safe.contains("style=\"color:#041E49\" data-openmime-dark-color"))
     let document = SafeHTML.conversation(MailThread(
         id: "dark",
         subject: "Dark",
@@ -105,6 +110,7 @@ import Testing
         )]
     ))
     #expect(document.contains(".body [data-openmime-dark-text]"))
+    #expect(document.contains(".body [data-openmime-light-background]"))
 }
 
 @Test func conversationCollapsesOlderMessagesAndOpensLatest() {

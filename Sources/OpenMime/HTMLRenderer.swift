@@ -55,7 +55,13 @@ enum SafeHTML {
         .plain { white-space: pre-wrap; font: inherit; margin: 0; }
         a { color: -apple-system-link; }
         @media (prefers-color-scheme: dark) {
+          .body [data-openmime-light-background] { background: #202124 !important; background-color: #202124 !important; }
+          .body [data-openmime-light-tint] { background: #1f2d42 !important; background-color: #1f2d42 !important; }
           .body [data-openmime-dark-text] { color: #e8eaed !important; }
+          .body [data-openmime-light-background] [data-openmime-dark-color],
+          .body [data-openmime-light-background][data-openmime-dark-color],
+          .body [data-openmime-light-tint] [data-openmime-dark-color],
+          .body [data-openmime-light-tint][data-openmime-dark-color] { color: #e8eaed !important; }
         }
         </style></head><body>\(messages)</body></html>
         """
@@ -105,11 +111,23 @@ enum SafeHTML {
         for match in tagExpression.matches(in: value, range: range).reversed() {
             guard let swiftRange = Range(match.range, in: value) else { continue }
             let tag = String(value[swiftRange])
-            guard !tag.localizedCaseInsensitiveContains("data-openmime-dark-text"),
-                  declaredTextColors(in: tag).contains(where: isDarkNeutral)
-            else { continue }
+            var markers: [String] = []
+            let textColors = declaredTextColors(in: tag)
+            if textColors.contains(where: isDarkNeutral), !tag.localizedCaseInsensitiveContains("data-openmime-dark-text") {
+                markers.append("data-openmime-dark-text")
+            }
+            if textColors.contains(where: isDarkColor), !tag.localizedCaseInsensitiveContains("data-openmime-dark-color") {
+                markers.append("data-openmime-dark-color")
+            }
+            let backgrounds = declaredBackgroundColors(in: tag)
+            if backgrounds.contains(where: isLightNeutral), !tag.localizedCaseInsensitiveContains("data-openmime-light-background") {
+                markers.append("data-openmime-light-background")
+            } else if backgrounds.contains(where: isLightTint), !tag.localizedCaseInsensitiveContains("data-openmime-light-tint") {
+                markers.append("data-openmime-light-tint")
+            }
+            guard !markers.isEmpty else { continue }
             let insertion = tag.hasSuffix("/>") ? tag.index(tag.endIndex, offsetBy: -2) : tag.index(before: tag.endIndex)
-            let marked = tag[..<insertion] + " data-openmime-dark-text" + tag[insertion...]
+            let marked = tag[..<insertion] + " " + markers.joined(separator: " ") + tag[insertion...]
             value.replaceSubrange(swiftRange, with: marked)
         }
         return value
@@ -130,7 +148,36 @@ enum SafeHTML {
         }
     }
 
+    private static func declaredBackgroundColors(in tag: String) -> [String] {
+        let pattern = #"(?i)(?:^|[;\"'])\s*background(?:-color)?\s*:\s*(#[0-9a-f]{3,8}|rgba?\([^)]*\))"#
+        let expression = try! NSRegularExpression(pattern: pattern)
+        let range = NSRange(tag.startIndex..<tag.endIndex, in: tag)
+        return expression.matches(in: tag, range: range).compactMap { match -> String? in
+            guard match.numberOfRanges > 1, let colorRange = Range(match.range(at: 1), in: tag) else { return nil }
+            return String(tag[colorRange])
+        }
+    }
+
     private static func isDarkNeutral(_ cssColor: String) -> Bool {
+        guard let channels = colorChannels(cssColor), let darkest = channels.min(), let brightest = channels.max() else { return false }
+        return brightest <= 110 && brightest - darkest <= 20
+    }
+
+    private static func isDarkColor(_ cssColor: String) -> Bool {
+        colorChannels(cssColor)?.max().map { $0 <= 110 } ?? false
+    }
+
+    private static func isLightNeutral(_ cssColor: String) -> Bool {
+        guard let channels = colorChannels(cssColor), let darkest = channels.min(), let brightest = channels.max() else { return false }
+        return darkest >= 235 && brightest - darkest <= 20
+    }
+
+    private static func isLightTint(_ cssColor: String) -> Bool {
+        guard let channels = colorChannels(cssColor), let darkest = channels.min(), let brightest = channels.max() else { return false }
+        return darkest >= 200 && brightest >= 235 && brightest - darkest > 20
+    }
+
+    private static func colorChannels(_ cssColor: String) -> [Int]? {
         let color = cssColor.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         let channels: [Int]?
         if color == "black" {
@@ -158,8 +205,7 @@ enum SafeHTML {
         } else {
             channels = nil
         }
-        guard let channels, let darkest = channels.min(), let brightest = channels.max() else { return false }
-        return brightest <= 110 && brightest - darkest <= 20
+        return channels
     }
 
     static func escape(_ text: String) -> String {
