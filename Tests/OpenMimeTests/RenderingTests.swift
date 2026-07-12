@@ -77,15 +77,19 @@ import Testing
 @Test func darkModeNormalizesOnlyNeutralSenderTextColors() {
     let html = """
     <h1 style="color: rgba(0,0,0,0.87); font-size: 30px">Dark heading</h1>
+    <h2 style="color:#2c2c2c">Google heading</h2>
     <span style="color:#4285f4">Google blue</span>
+    <span style="color:#660000">Dark brand red</span>
     <font color="#000000">Legacy black</font>
     """
     let safe = SafeHTML.sanitizeFragment(html)
     #expect(safe.contains("data-openmime-dark-text"))
-    #expect(safe.components(separatedBy: "data-openmime-dark-text").count - 1 == 2)
+    #expect(safe.components(separatedBy: "data-openmime-dark-text").count - 1 == 3)
     #expect(safe.contains("<h1 style=\"color: rgba(0,0,0,0.87); font-size: 30px\" data-openmime-dark-text>"))
     #expect(safe.contains("<font color=\"#000000\" data-openmime-dark-text>"))
+    #expect(safe.contains("<h2 style=\"color:#2c2c2c\" data-openmime-dark-text>"))
     #expect(safe.contains("style=\"color:#4285f4\""))
+    #expect(!safe.contains("style=\"color:#660000\" data-openmime-dark-text"))
     let document = SafeHTML.conversation(MailThread(
         id: "dark",
         subject: "Dark",

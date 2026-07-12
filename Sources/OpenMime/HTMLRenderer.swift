@@ -99,26 +99,67 @@ enum SafeHTML {
     /// The canvas is transparent in OpenMime, so mark only neutral dark colors
     /// for a dark-mode override while preserving brand and semantic colors.
     static func markDarkNeutralText(in html: String) -> String {
-        let neutralColors = [
-            "black", "#000", "#000000", "#1f1f1f", "#202124", "#222", "#222222",
-            "#292929", "#333", "#333333", "#3c4043", "#5f6368", "rgb(0,0,0)", "rgb(0, 0, 0)",
-            "rgba(0,0,0,0.87)", "rgba(0, 0, 0, 0.87)", "rgba(0,0,0,0.54)", "rgba(0, 0, 0, 0.54)",
-        ]
         var value = html
-        for color in neutralColors {
-            let escaped = NSRegularExpression.escapedPattern(for: color)
-            value = value.replacingOccurrences(
-                of: "(?i)(<[^>]*\\bstyle\\s*=\\s*[\\\"'][^\\\"']*\\bcolor\\s*:\\s*\(escaped)(?:\\s*!important)?[^\\\"']*[\\\"'][^>]*)(>)",
-                with: "$1 data-openmime-dark-text$2",
-                options: .regularExpression
-            )
-            value = value.replacingOccurrences(
-                of: "(?i)(<[^>]*\\bcolor\\s*=\\s*[\\\"']\\s*\(escaped)\\s*[\\\"'][^>]*)(>)",
-                with: "$1 data-openmime-dark-text$2",
-                options: .regularExpression
-            )
+        let tagExpression = try! NSRegularExpression(pattern: #"(?is)<[^>]+>"#)
+        let range = NSRange(value.startIndex..<value.endIndex, in: value)
+        for match in tagExpression.matches(in: value, range: range).reversed() {
+            guard let swiftRange = Range(match.range, in: value) else { continue }
+            let tag = String(value[swiftRange])
+            guard !tag.localizedCaseInsensitiveContains("data-openmime-dark-text"),
+                  declaredTextColors(in: tag).contains(where: isDarkNeutral)
+            else { continue }
+            let insertion = tag.hasSuffix("/>") ? tag.index(tag.endIndex, offsetBy: -2) : tag.index(before: tag.endIndex)
+            let marked = tag[..<insertion] + " data-openmime-dark-text" + tag[insertion...]
+            value.replaceSubrange(swiftRange, with: marked)
         }
         return value
+    }
+
+    private static func declaredTextColors(in tag: String) -> [String] {
+        let patterns = [
+            #"(?i)(?:^|[;\"'])\s*color\s*:\s*(black|#[0-9a-f]{3,8}|rgba?\([^)]*\))"#,
+            #"(?i)\bcolor\s*=\s*[\"']?\s*(black|#[0-9a-f]{3,8}|rgba?\([^)]*\))"#,
+        ]
+        return patterns.flatMap { pattern in
+            let expression = try! NSRegularExpression(pattern: pattern)
+            let range = NSRange(tag.startIndex..<tag.endIndex, in: tag)
+            return expression.matches(in: tag, range: range).compactMap { match -> String? in
+                guard match.numberOfRanges > 1, let colorRange = Range(match.range(at: 1), in: tag) else { return nil }
+                return String(tag[colorRange])
+            }
+        }
+    }
+
+    private static func isDarkNeutral(_ cssColor: String) -> Bool {
+        let color = cssColor.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let channels: [Int]?
+        if color == "black" {
+            channels = [0, 0, 0]
+        } else if color.hasPrefix("#") {
+            let hex = String(color.dropFirst())
+            if hex.count == 3 {
+                channels = hex.map { Int(String(repeating: String($0), count: 2), radix: 16) ?? 255 }
+            } else if hex.count == 6 || hex.count == 8 {
+                channels = stride(from: 0, to: 6, by: 2).map { offset in
+                    let start = hex.index(hex.startIndex, offsetBy: offset)
+                    let end = hex.index(start, offsetBy: 2)
+                    return Int(hex[start..<end], radix: 16) ?? 255
+                }
+            } else {
+                channels = nil
+            }
+        } else if color.hasPrefix("rgb") {
+            let numbers = color
+                .replacingOccurrences(of: #"[^0-9.,]"#, with: "", options: .regularExpression)
+                .split(separator: ",")
+                .prefix(3)
+                .compactMap { Double($0).map(Int.init) }
+            channels = numbers.count == 3 ? numbers : nil
+        } else {
+            channels = nil
+        }
+        guard let channels, let darkest = channels.min(), let brightest = channels.max() else { return false }
+        return brightest <= 110 && brightest - darkest <= 20
     }
 
     static func escape(_ text: String) -> String {
